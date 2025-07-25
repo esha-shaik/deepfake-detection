@@ -185,7 +185,7 @@ def f1_score(y_true : np.ndarray, y_pred : np.ndarray, class_idx : int, threshol
 
 ##########
 
-# ROC-AUC
+# Receiver Operating Characteristic (ROC) and Area Under the Curve (AUC) (ROC-AUC)
 
 def roc_curve(y_true : np.ndarray, y_pred : np.ndarray, class_idx : int, num_samples : int = 100, sorted=True) -> tuple:
     """
@@ -243,3 +243,26 @@ def roc_auc(y_true : np.ndarray, y_pred : np.ndarray, class_idx : int, num_sampl
     """
     fpr, tpr, _ = roc_curve(y_true, y_pred, class_idx=class_idx, num_samples=num_samples)
     return np.trapezoid(tpr, fpr) * 100
+
+##########
+
+# Equal Error Rate (EER)
+
+def equal_error_rate(y_true : np.ndarray, y_pred : np.ndarray, class_idx : int, num_samples : int = 100) -> float:
+    """
+    Calculate the Equal Error Rate (EER) for multi-class predictions.
+    EER is the point where the false positive rate equals the false negative rate.
+
+    Parameters:
+    y_true (np.ndarray): Array of true labels (one-hot) (B, C).
+    y_pred (np.ndarray): Array of predicted labels (class scores) (B, C).
+    class_idx (int): Index of the class to compute EER for.
+    num_samples (int, optional): Number of samples to compute the EER for. Default is 100.
+
+    Returns:
+    float: Equal Error Rate as a percentage.
+    """
+    fpr, tpr, _ = roc_curve(y_true, y_pred, class_idx=class_idx, num_samples=num_samples)
+    fnr = 1 - tpr  # False Negative Rate
+    eer_index = np.argmin(np.abs(fpr - fnr))
+    return 100 * (fpr[eer_index] + fnr[eer_index]) / 2
