@@ -28,8 +28,8 @@ def confusion_matrix(y_true : np.ndarray, y_pred : np.ndarray, class_idx : int =
     Returns:
     np.ndarray: Confusion matrix of shape (num_classes, num_classes) if class_idx is None.
     np.ndarray: Confusion matrix of shape (2, 2) if class_idx is specified.
-        [[TP, FP],
-         [FN, TN]]
+        [[TN, FP],
+         [FN, TP]]
     """
     num_classes = y_true.shape[-1]
     cm = np.zeros((num_classes, num_classes), dtype=int)
@@ -43,16 +43,17 @@ def confusion_matrix(y_true : np.ndarray, y_pred : np.ndarray, class_idx : int =
 
     assert class_idx < num_classes, "class_idx must be less than the number of classes"
     assert threshold >= 0 and threshold <= 1, "threshold must be between 0 and 1"
-    y_pred_binary = (y_pred[:, class_idx] >= threshold).astype(int)
+
+    y_pred_binary = (y_pred >= threshold).astype(int)
     for i in range(len(y_true)):
         true_label = y_true[i, class_idx].astype(int)
-        pred_label = y_pred_binary[i].astype(int)
+        pred_label = y_pred_binary[i, class_idx].astype(int)
         cm[true_label, pred_label] += 1
 
     cm_filtered = np.zeros((2, 2), dtype=int)
-    cm_filtered[0, 0] = cm[class_idx, class_idx]  # True Positives
-    cm_filtered[0, 1] = np.sum(cm[class_idx, :]) - cm_filtered[0, 0]  # False Positives
-    cm_filtered[1, 0] = np.sum(cm[:, class_idx]) - cm_filtered[0, 0]  # False Negatives
+    cm_filtered[0, 0] = cm[0, 0]  # True Positives
+    cm_filtered[0, 1] = np.sum(cm[0, :]) - cm_filtered[0, 0]  # False Negatives
+    cm_filtered[1, 0] = np.sum(cm[:, 0]) - cm_filtered[0, 0]  # False Positives
     cm_filtered[1, 1] = np.sum(cm) - cm_filtered[0, 0] - cm_filtered[0, 1] - cm_filtered[1, 0]  # True Negatives
     return cm_filtered
 
@@ -97,8 +98,8 @@ def accuracy(y_true : np.ndarray, y_pred : np.ndarray, class_idx : int = None, t
         return np.mean(y_true == y_pred) * 100
 
     cm = confusion_matrix(y_true, y_pred, class_idx=class_idx, threshold=threshold)
-    true_positives = cm[0, 0]  # True Positives
-    true_negatives = cm[1, 1]  # True Negatives
+    true_positives = cm[1, 1]  # True Positives
+    true_negatives = cm[0, 0]  # True Negatives
     total = np.sum(cm)
     accuracy = (true_positives + true_negatives) / total
     return accuracy * 100
@@ -121,7 +122,7 @@ def precision(y_true : np.ndarray, y_pred : np.ndarray, class_idx : int, thresho
     float: Precision as a percentage.
     """
     cm = confusion_matrix(y_true, y_pred, class_idx=class_idx, threshold=threshold)
-    true_positives = cm[0, 0]  # True Positives
+    true_positives = cm[1, 1]  # True Positives
     false_positives = cm[0, 1]  # False Positives
     precision = true_positives / (true_positives + false_positives + 1e-10)  # Adding a small value to avoid division by zero
     return precision * 100
@@ -140,7 +141,7 @@ def recall(y_true : np.ndarray, y_pred : np.ndarray, class_idx : int, threshold 
     float: Recall as a percentage.
     """
     cm = confusion_matrix(y_true, y_pred, class_idx=class_idx, threshold=threshold)
-    true_positives = cm[0, 0]  # True Positives
+    true_positives = cm[1, 1]  # True Positives
     false_negatives = cm[1, 0]  # False Negatives
     recall = true_positives / (true_positives + false_negatives + 1e-10)  # Adding a small value to avoid division by zero
     return recall * 100
@@ -210,10 +211,10 @@ def roc_curve(y_true : np.ndarray, y_pred : np.ndarray, class_idx : int, num_sam
 
     for threshold in thresholds:
         cm = confusion_matrix(y_true, y_pred, class_idx=class_idx, threshold=threshold)
-        true_positives = cm[0, 0]
+        true_positives = cm[1, 1]
         false_positives = cm[0, 1]
         false_negatives = cm[1, 0]
-        true_negatives = cm[1, 1]
+        true_negatives = cm[0, 0]
 
         fpr.append(false_positives / (false_positives + true_negatives + 1e-10))  # Adding a small value to avoid division by zero
         tpr.append(true_positives / (true_positives + false_negatives + 1e-10))  # Adding a small value to avoid division by zero
@@ -223,14 +224,15 @@ def roc_curve(y_true : np.ndarray, y_pred : np.ndarray, class_idx : int, num_sam
 
     if sorted:
         sort = np.argsort(fpr)
-        return fpr[sort], tpr[sort], thresholds[sort]
+        fpr_sort, tpr_sort, thresholds_sort = fpr[sort], tpr[sort], thresholds[sort]
+        _, sort_unique = np.unique(fpr_sort, return_index=True)  # Remove duplicates
+        return fpr_sort[sort_unique], tpr_sort[sort_unique], thresholds_sort[sort_unique]
 
     return fpr, tpr, thresholds
 
 def roc_auc(y_true : np.ndarray, y_pred : np.ndarray, class_idx : int, num_samples : int = 100) -> float:
     """
     Calculate the ROC AUC for multi-class predictions.
-    Finds the area under the ROC curve for the class given by class_idx by integrating using the trapezoidal rule.
 
     Parameters:
     y_true (np.ndarray): Array of true labels (one-hot) (B, C).
